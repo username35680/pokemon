@@ -3,7 +3,7 @@ import { ActionMenu } from './ActionMenu';
 import { GameOverOverlay } from './GameOverOverlay';
 import { PokemonSprite } from './PokemonSprite';
 import { useBattleStore } from '../../store/useBattleStore';
-import { BattleBackground } from './BattleBackground'; // Import
+import { BattleBackground } from './BattleBackground';
 
 export const BattleArena = () => {
   const { player, opponent } = useBattleStore();

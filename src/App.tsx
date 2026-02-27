@@ -1,15 +1,11 @@
-import { BattleArena } from './components/battle/BattleArena';
-import { useBattleStore } from './store/useBattleStore';
-import { useEffect } from 'react';
+import { GameController } from './components/GameController';
 
-function App() {
-  const initGame = useBattleStore((state) => state.initGame);
-
-  useEffect(() => {
-    initGame();
-  }, [initGame]);
-
-  return <BattleArena />;
-}
+export const App = () => {
+  return (
+    <div className="w-full h-screen bg-black">
+      <GameController />
+    </div>
+  );
+};
 
 export default App;
