@@ -1,4 +1,4 @@
-import { useState, useEffect,useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { useBattleStore } from '../../store/useBattleStore';
 
@@ -31,169 +31,100 @@ const BIG_MAP = [
   [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,2],
   [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
 ];
+const MOVEMENT_DURATION = 200; // ms pour traverser une case
 
 export const Overworld = () => {
+  // On ne garde qu'une seule source de vérité pour la position (en cases)
   const [pos, setPos] = useState({ x: 5, y: 5 });
+  const [isMoving, setIsMoving] = useState(false);
   const { setGameState } = useGameStore();
   const { initGame } = useBattleStore();
-  const [tilePos, setTilePos] = useState({ x: 5, y: 5 });
-  const [pixelPos, setPixelPos] = useState({
-    x: 5 * TILE_SIZE,
-    y: 5 * TILE_SIZE
-  });
 
-  const targetRef = useRef(pixelPos);
-  const movingRef = useRef(false);
-  const pressedKeys = useRef<Set<string>>(new Set());
-  const MOVEMENT_SPEED = 250;
+  // Calcul du décalage de la caméra
+  const cameraX = useMemo(() => 
+    Math.max(0, Math.min(pos.x - VIEWPORT_SIZE / 2, BIG_MAP[0].length - VIEWPORT_SIZE)), 
+  [pos.x]);
+  
+  const cameraY = useMemo(() => 
+    Math.max(0, Math.min(pos.y - VIEWPORT_SIZE / 2, BIG_MAP.length - VIEWPORT_SIZE)), 
+  [pos.y]);
 
-  const playerTileX = pixelPos.x / TILE_SIZE;
-  const playerTileY = pixelPos.y / TILE_SIZE;
-
-  const viewStartX = Math.max(
-    0,
-    Math.min(
-      Math.floor(playerTileX - VIEWPORT_SIZE / 2),
-      BIG_MAP[0].length - VIEWPORT_SIZE
-    )
-  );
-
-  const viewStartY = Math.max(
-    0,
-    Math.min(
-      Math.floor(playerTileY - VIEWPORT_SIZE / 2),
-      BIG_MAP.length - VIEWPORT_SIZE
-    )
-  );
-
-  // 2. On utilise une fonction de mise à jour "fonctionnelle" (prevPos)
-  // Cela permet de ne jamais avoir besoin de lire 'pos' directement dans la fonction
   const handleKeyDown = (e: KeyboardEvent) => {
-    setPos((prev) => {
-      let { x, y } = prev;
-      if (e.key === 'ArrowUp') y -= 1;
-      if (e.key === 'ArrowDown') y += 1;
-      if (e.key === 'ArrowLeft') x -= 1;
-      if (e.key === 'ArrowRight') x += 1;
+    if (isMoving) return;
 
-      // Vérification des collisions
-      if (BIG_MAP[y]?.[x] !== undefined && BIG_MAP[y][x] !== 2) {
-        // Déclenchement combat (attention : on garde la logique de probabilité)
-        if (BIG_MAP[y][x] === 1 && Math.random() < 0.1) {
-          initGame();
-          setGameState('battle');
-        }
-        return { x, y }; // On met à jour la position
-      }
-      return prev; // On ne change rien
-    });
-  };
+    let nextX = pos.x;
+    let nextY = pos.y;
 
-useEffect(() => {
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (movingRef.current) return;
+    if (e.key === 'ArrowUp') nextY--;
+    else if (e.key === 'ArrowDown') nextY++;
+    else if (e.key === 'ArrowLeft') nextX--;
+    else if (e.key === 'ArrowRight') nextX++;
+    else return;
 
-    let { x, y } = tilePos;
+    // Collision & Limites
+    const tile = BIG_MAP[nextY]?.[nextX];
+    if (tile === undefined || tile === 2) return;
 
-    if (e.key === "ArrowUp") y--;
-    if (e.key === "ArrowDown") y++;
-    if (e.key === "ArrowLeft") x--;
-    if (e.key === "ArrowRight") x++;
+    // Logique de mouvement
+    setIsMoving(true);
+    setPos({ x: nextX, y: nextY });
 
-    if (BIG_MAP[y]?.[x] === undefined) return;
-    if (BIG_MAP[y][x] === 2) return;
-
-    // combat
-    if (BIG_MAP[y][x] === 1 && Math.random() < 0.2) {
-      initGame();
-      setGameState("battle");
+    // Combat
+    if (tile === 1 && Math.random() < 0.1) {
+       setTimeout(() => { // Attendre la fin du mouvement visuel
+         initGame();
+         setGameState('battle');
+       }, MOVEMENT_DURATION);
     }
 
-    movingRef.current = true;
-
-    targetRef.current = {
-      x: x * TILE_SIZE,
-      y: y * TILE_SIZE
-    };
-
-    setTilePos({ x, y });
+    // Débloquer le mouvement après la transition
+    setTimeout(() => setIsMoving(false), MOVEMENT_DURATION);
   };
 
-  window.addEventListener("keydown", handleKeyDown);
-  return () => window.removeEventListener("keydown", handleKeyDown);
-}, [tilePos]);
-useEffect(() => {
-  let raf: number;
-
-  const SPEED = 4; // pixels par frame
-
-  const loop = () => {
-    setPixelPos(prev => {
-      const dx = targetRef.current.x - prev.x;
-      const dy = targetRef.current.y - prev.y;
-
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < SPEED) {
-        movingRef.current = false;
-        return targetRef.current;
-      }
-
-      return {
-        x: prev.x + (dx / dist) * SPEED,
-        y: prev.y + (dy / dist) * SPEED
-      };
-    });
-
-    raf = requestAnimationFrame(loop);
-  };
-
-  raf = requestAnimationFrame(loop);
-  return () => cancelAnimationFrame(raf);
-}, []);
-
-  // 3. Le listener est lié une seule fois au montage du composant
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []); // <-- Dépendance vide : ne se déclenche qu'une fois
+  }, [pos, isMoving]);
 
-    return (
-        <div className="flex justify-center items-center h-screen bg-emerald-900">
+  return (
+    <div className="flex justify-center items-center h-screen bg-emerald-900">
+      {/* Fenêtre de vue (Viewport) */}
+      <div 
+        className="relative overflow-hidden bg-emerald-800 border-4 border-emerald-950"
+        style={{ width: VIEWPORT_SIZE * TILE_SIZE, height: VIEWPORT_SIZE * TILE_SIZE }}
+      >
+        {/* Le Monde (Grille) */}
         <div 
-            className="relative border-4 border-emerald-950 shadow-2xl overflow-hidden"
-            style={{ width: `${VIEWPORT_SIZE * TILE_SIZE}px`, height: `${VIEWPORT_SIZE * TILE_SIZE}px` }}
+          className="absolute transition-transform ease-linear"
+          style={{ 
+            // Correction ici : 'duration' devient 'transitionDuration'
+            transitionDuration: `${MOVEMENT_DURATION}ms`,
+            transform: `translate3d(${-cameraX * TILE_SIZE}px, ${-cameraY * TILE_SIZE}px, 0)`,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${BIG_MAP[0].length}, ${TILE_SIZE}px)`
+          }}
         >
-            {/* 2. SYNCHRONISATION : La transition doit durer exactement le même temps que le setInterval */}
+          {BIG_MAP.map((row, y) => row.map((tile, x) => (
             <div 
-            className="grid transition-all ease-linear"
-            style={{ 
-                transitionDuration: `${MOVEMENT_SPEED}ms`, // <- SYNC PARFAITE
-                transform: `translate(${-viewStartX * TILE_SIZE}px, ${-viewStartY * TILE_SIZE}px)`,
-                gridTemplateColumns: `repeat(${BIG_MAP[0].length}, ${TILE_SIZE}px)` 
+              key={`${x}-${y}`} 
+              className={`w-12 h-12 ${tile === 2 ? 'bg-stone-800' : tile === 1 ? 'bg-emerald-400' : 'bg-emerald-600'}`} 
+            />
+          )))}
+
+          {/* Le Joueur (Positionné absolument par rapport au MONDE) */}
+          <div
+            className="absolute flex items-center justify-center text-2xl transition-all ease-linear"
+            style={{
+              width: TILE_SIZE,
+              height: TILE_SIZE,
+              transform: `translate3d(${pos.x * TILE_SIZE}px, ${pos.y * TILE_SIZE}px, 0)`,
+              transitionDuration: `${MOVEMENT_DURATION}ms`
             }}
-            >
-            {BIG_MAP.map((row, y) =>
-                row.map((tile, x) => (
-                <div key={`${x}-${y}`} className={`w-12 h-12 ${
-                    tile === 2 ? 'bg-stone-800' : tile === 1 ? 'bg-emerald-400' : 'bg-emerald-600'
-                }`}>
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: pixelPos.x,
-                        top: pixelPos.y,
-                        width: TILE_SIZE,
-                        height: TILE_SIZE
-                      }}
-                    >
-                      👤
-                    </div>
-                </div>
-                ))
-            )}
-            </div>
+          >
+            👤
+          </div>
         </div>
-        </div>
-    );
+      </div>
+    </div>
+  );
 };
