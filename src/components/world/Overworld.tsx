@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { useBattleStore } from '../../store/useBattleStore';
+import { Player } from '../Player';
 
 // Configuration
 const TILE_SIZE = 48;
@@ -33,14 +34,14 @@ const BIG_MAP = [
 ];
 const MOVEMENT_DURATION = 200; // ms pour traverser une case
 
+
 export const Overworld = () => {
-  // On ne garde qu'une seule source de vérité pour la position (en cases)
   const [pos, setPos] = useState({ x: 5, y: 5 });
+  const [direction, setDirection] = useState('down'); // Nouvelle state
   const [isMoving, setIsMoving] = useState(false);
   const { setGameState } = useGameStore();
   const { initGame } = useBattleStore();
 
-  // Calcul du décalage de la caméra
   const cameraX = useMemo(() => 
     Math.max(0, Math.min(pos.x - VIEWPORT_SIZE / 2, BIG_MAP[0].length - VIEWPORT_SIZE)), 
   [pos.x]);
@@ -54,50 +55,46 @@ export const Overworld = () => {
 
     let nextX = pos.x;
     let nextY = pos.y;
+    let newDir = direction;
 
-    if (e.key === 'ArrowUp') nextY--;
-    else if (e.key === 'ArrowDown') nextY++;
-    else if (e.key === 'ArrowLeft') nextX--;
-    else if (e.key === 'ArrowRight') nextX++;
+    if (e.key === 'ArrowUp') { nextY--; newDir = 'up'; }
+    else if (e.key === 'ArrowDown') { nextY++; newDir = 'down'; }
+    else if (e.key === 'ArrowLeft') { nextX--; newDir = 'left'; }
+    else if (e.key === 'ArrowRight') { nextX++; newDir = 'right'; }
     else return;
 
-    // Collision & Limites
+    setDirection(newDir); // On tourne même si on est bloqué
+
     const tile = BIG_MAP[nextY]?.[nextX];
     if (tile === undefined || tile === 2) return;
 
-    // Logique de mouvement
     setIsMoving(true);
     setPos({ x: nextX, y: nextY });
 
-    // Combat
     if (tile === 1 && Math.random() < 0.1) {
-       setTimeout(() => { // Attendre la fin du mouvement visuel
+       setTimeout(() => {
          initGame();
          setGameState('battle');
        }, MOVEMENT_DURATION);
     }
 
-    // Débloquer le mouvement après la transition
     setTimeout(() => setIsMoving(false), MOVEMENT_DURATION);
   };
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pos, isMoving]);
+  }, [pos, isMoving, direction]); // Ajout de direction ici
 
   return (
     <div className="flex justify-center items-center h-screen bg-emerald-900">
-      {/* Fenêtre de vue (Viewport) */}
       <div 
         className="relative overflow-hidden bg-emerald-800 border-4 border-emerald-950"
         style={{ width: VIEWPORT_SIZE * TILE_SIZE, height: VIEWPORT_SIZE * TILE_SIZE }}
       >
-        {/* Le Monde (Grille) */}
         <div 
           className="absolute transition-transform ease-linear"
           style={{ 
-            // Correction ici : 'duration' devient 'transitionDuration'
             transitionDuration: `${MOVEMENT_DURATION}ms`,
             transform: `translate3d(${-cameraX * TILE_SIZE}px, ${-cameraY * TILE_SIZE}px, 0)`,
             display: 'grid',
@@ -111,9 +108,9 @@ export const Overworld = () => {
             />
           )))}
 
-          {/* Le Joueur (Positionné absolument par rapport au MONDE) */}
+          {/* Le Joueur */}
           <div
-            className="absolute flex items-center justify-center text-2xl transition-all ease-linear"
+            className="absolute transition-all ease-linear"
             style={{
               width: TILE_SIZE,
               height: TILE_SIZE,
@@ -121,7 +118,7 @@ export const Overworld = () => {
               transitionDuration: `${MOVEMENT_DURATION}ms`
             }}
           >
-            👤
+            <Player direction={direction} isMoving={isMoving} />
           </div>
         </div>
       </div>
