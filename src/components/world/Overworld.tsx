@@ -36,12 +36,35 @@ export const Overworld = () => {
   const [pos, setPos] = useState({ x: 5, y: 5 });
   const { setGameState } = useGameStore();
   const { initGame } = useBattleStore();
+  const [tilePos, setTilePos] = useState({ x: 5, y: 5 });
+  const [pixelPos, setPixelPos] = useState({
+    x: 5 * TILE_SIZE,
+    y: 5 * TILE_SIZE
+  });
+
+  const targetRef = useRef(pixelPos);
+  const movingRef = useRef(false);
   const pressedKeys = useRef<Set<string>>(new Set());
   const MOVEMENT_SPEED = 250;
 
-  // 1. Calculs constants (ne changent pas la logique de mouvement)
-  const viewStartX = Math.max(0, Math.min(pos.x - Math.floor(VIEWPORT_SIZE / 2), BIG_MAP[0].length - VIEWPORT_SIZE));
-  const viewStartY = Math.max(0, Math.min(pos.y - Math.floor(VIEWPORT_SIZE / 2), BIG_MAP.length - VIEWPORT_SIZE));
+  const playerTileX = pixelPos.x / TILE_SIZE;
+  const playerTileY = pixelPos.y / TILE_SIZE;
+
+  const viewStartX = Math.max(
+    0,
+    Math.min(
+      Math.floor(playerTileX - VIEWPORT_SIZE / 2),
+      BIG_MAP[0].length - VIEWPORT_SIZE
+    )
+  );
+
+  const viewStartY = Math.max(
+    0,
+    Math.min(
+      Math.floor(playerTileY - VIEWPORT_SIZE / 2),
+      BIG_MAP.length - VIEWPORT_SIZE
+    )
+  );
 
   // 2. On utilise une fonction de mise à jour "fonctionnelle" (prevPos)
   // Cela permet de ne jamais avoir besoin de lire 'pos' directement dans la fonction
@@ -56,7 +79,7 @@ export const Overworld = () => {
       // Vérification des collisions
       if (BIG_MAP[y]?.[x] !== undefined && BIG_MAP[y][x] !== 2) {
         // Déclenchement combat (attention : on garde la logique de probabilité)
-        if (BIG_MAP[y][x] === 1 && Math.random() < 0.2) {
+        if (BIG_MAP[y][x] === 1 && Math.random() < 0.1) {
           initGame();
           setGameState('battle');
         }
@@ -66,45 +89,68 @@ export const Overworld = () => {
     });
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => pressedKeys.current.add(e.key);
-    const handleKeyUp = (e: KeyboardEvent) => pressedKeys.current.delete(e.key);
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (movingRef.current) return;
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    let { x, y } = tilePos;
 
-    // Boucle de jeu (Game Loop)
-    const interval = setInterval(() => {
-      // Si aucune touche n'est pressée, on ne fait rien
-      if (pressedKeys.current.size === 0) return;
+    if (e.key === "ArrowUp") y--;
+    if (e.key === "ArrowDown") y++;
+    if (e.key === "ArrowLeft") x--;
+    if (e.key === "ArrowRight") x++;
 
-      setPos((prev) => {
-        let { x, y } = prev;
-        // On ne gère qu'une seule direction par cycle pour éviter les diagonales bizarres
-        if (pressedKeys.current.has('ArrowUp')) y -= 1;
-        else if (pressedKeys.current.has('ArrowDown')) y += 1;
-        else if (pressedKeys.current.has('ArrowLeft')) x -= 1;
-        else if (pressedKeys.current.has('ArrowRight')) x += 1;
+    if (BIG_MAP[y]?.[x] === undefined) return;
+    if (BIG_MAP[y][x] === 2) return;
 
-        // Vérification collision
-        if (BIG_MAP[y]?.[x] !== undefined && BIG_MAP[y][x] !== 2) {
-          // Si herbe, chance de combat
-          if (BIG_MAP[y][x] === 1 && Math.random() < 0.2) {
-            initGame();
-            setGameState('battle');
-          }
-          return { x, y };
-        }
-        return prev;
-      });
-    }, MOVEMENT_SPEED); 
+    // combat
+    if (BIG_MAP[y][x] === 1 && Math.random() < 0.2) {
+      initGame();
+      setGameState("battle");
+    }
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      clearInterval(interval);
+    movingRef.current = true;
+
+    targetRef.current = {
+      x: x * TILE_SIZE,
+      y: y * TILE_SIZE
     };
-  }, []);
+
+    setTilePos({ x, y });
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, [tilePos]);
+useEffect(() => {
+  let raf: number;
+
+  const SPEED = 4; // pixels par frame
+
+  const loop = () => {
+    setPixelPos(prev => {
+      const dx = targetRef.current.x - prev.x;
+      const dy = targetRef.current.y - prev.y;
+
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < SPEED) {
+        movingRef.current = false;
+        return targetRef.current;
+      }
+
+      return {
+        x: prev.x + (dx / dist) * SPEED,
+        y: prev.y + (dy / dist) * SPEED
+      };
+    });
+
+    raf = requestAnimationFrame(loop);
+  };
+
+  raf = requestAnimationFrame(loop);
+  return () => cancelAnimationFrame(raf);
+}, []);
 
   // 3. Le listener est lié une seule fois au montage du composant
   useEffect(() => {
@@ -132,7 +178,17 @@ export const Overworld = () => {
                 <div key={`${x}-${y}`} className={`w-12 h-12 ${
                     tile === 2 ? 'bg-stone-800' : tile === 1 ? 'bg-emerald-400' : 'bg-emerald-600'
                 }`}>
-                    {pos.x === x && pos.y === y && "👤"}
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: pixelPos.x,
+                        top: pixelPos.y,
+                        width: TILE_SIZE,
+                        height: TILE_SIZE
+                      }}
+                    >
+                      👤
+                    </div>
                 </div>
                 ))
             )}

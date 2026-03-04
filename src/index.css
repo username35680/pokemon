@@ -9,6 +9,9 @@
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+#root{
+  flex: 1;
+}
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
