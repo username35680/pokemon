@@ -1,23 +1,28 @@
-import { useState, useEffect} from 'react';
+import { useState, useEffect } from 'react';
 import trainer from '../assets/trainer.png'; 
-export const Player = ({ direction, isMoving }: { direction: string, isMoving: boolean }) => {
+
+interface PlayerProps {
+  direction: string;
+  isMoving: boolean;
+  isHighGrass?: boolean; // Optionnel : vrai si le joueur est dans l'herbe
+}
+
+export const Player = ({ direction, isMoving, isHighGrass = false }: PlayerProps) => {
   const [frame, setFrame] = useState(0);
 
-  // Gérer l'animation de marche (0, 1, 2, 3)
   useEffect(() => {
     if (!isMoving) {
-      setFrame(0); // Revient à la frame de repos
+      setFrame(0);
       return;
     }
 
     const interval = setInterval(() => {
       setFrame((f) => (f + 1) % 4);
-    }, 120); // Vitesse des pas
+    }, 120);
 
     return () => clearInterval(interval);
   }, [isMoving]);
 
-  // Mapping des directions vers les lignes du sprite sheet
   const rowMap: Record<string, number> = {
     down: 0,
     left: 1,
@@ -25,17 +30,18 @@ export const Player = ({ direction, isMoving }: { direction: string, isMoving: b
     up: 3,
   };
 
-  // Taille d'une frame dans ton image d'origine (probablement 32x32 ou 64x64)
-  // On utilise des % pour que ça s'adapte à n'importe quelle résolution d'image
   return (
     <div
       style={{
         width: '100%',
         height: '100%',
-        backgroundImage: `url(${trainer})`, // Assure-toi que le fichier est dans /public
-        backgroundSize: '400% 400%', // Car c'est une grille 4x4
+        backgroundImage: `url(${trainer})`,
+        backgroundSize: '400% 400%',
         backgroundPosition: `${(frame * 100) / 3}% ${(rowMap[direction] * 100) / 3}%`,
         imageRendering: 'pixelated',
+        // Si isHighGrass est vrai, on coupe les 15% du bas du sprite (les pieds)
+        clipPath: isHighGrass ? 'inset(0% 0% 15% 0%)' : 'none',
+        transition: 'clip-path 0.2s ease' // Transition douce pour l'immersion
       }}
     />
   );

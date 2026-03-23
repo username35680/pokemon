@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { useBattleStore } from '../../store/useBattleStore';
 import { Player } from '../Player';
+import map from '../../assets/tileset.png'; 
 
 // Configuration
 const TILE_SIZE = 48;
@@ -10,7 +11,7 @@ const VIEWPORT_SIZE = 10; // Affiche 10x10 cases
 const BIG_MAP = [
   [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   [2, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,2],
-  [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,2],
+  [2, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,2],
   [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,2],
   [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,2],
   [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,2],
@@ -34,6 +35,17 @@ const BIG_MAP = [
 ];
 const MOVEMENT_DURATION = 200; // ms pour traverser une case
 
+const TILE_MAP: Record<number, { x: number; y: number }> = {
+  0: { x: 0, y: 0 }, // Herbe courte (index 0 dans ton BIG_MAP)
+  1: { x: 11, y: 7 }, // Hautes herbes (index 1)
+  2: { x: 8, y: 5 }, // Mur / Rocher (index 2)
+};
+
+const getTilePos = (indexX: number, indexY: number) => {
+  const columns = 16; 
+  const rows = 16;
+  return `${(indexX / (columns - 1)) * 100}% ${(indexY / (rows - 1)) * 100}%`;
+};
 
 export const Overworld = () => {
   const [pos, setPos] = useState({ x: 5, y: 5 });
@@ -101,24 +113,42 @@ export const Overworld = () => {
             gridTemplateColumns: `repeat(${BIG_MAP[0].length}, ${TILE_SIZE}px)`
           }}
         >
-          {BIG_MAP.map((row, y) => row.map((tile, x) => (
-            <div 
-              key={`${x}-${y}`} 
-              className={`w-12 h-12 ${tile === 2 ? 'bg-stone-800' : tile === 1 ? 'bg-emerald-400' : 'bg-emerald-600'}`} 
-            />
-          )))}
+         {BIG_MAP.map((row, y) => row.map((tile, x) => {
+            const isPlayerOnThisTile = pos.x === x && pos.y === y;
+            const isHighGrass = tile === 1;
 
-          {/* Le Joueur */}
+            return (
+              <div 
+                key={`${x}-${y}`} 
+                className={isHighGrass && isPlayerOnThisTile ? 'high-grass-anim' : ''}
+                style={{
+                  width: TILE_SIZE,
+                  height: TILE_SIZE,
+                  backgroundImage: `url(${map})`,
+                  backgroundSize: '1600%', 
+                  backgroundPosition: getTilePos(TILE_MAP[tile].x, TILE_MAP[tile].y),
+                  imageRendering: 'pixelated',
+                }}
+              />
+            );
+          }))}
+
+          {/* 2. LE JOUEUR (Modifié ici) */}
           <div
             className="absolute transition-all ease-linear"
             style={{
               width: TILE_SIZE,
               height: TILE_SIZE,
               transform: `translate3d(${pos.x * TILE_SIZE}px, ${pos.y * TILE_SIZE}px, 0)`,
-              transitionDuration: `${MOVEMENT_DURATION}ms`
+              transitionDuration: `${MOVEMENT_DURATION}ms`,
+              zIndex: 10, // On s'assure qu'il est au dessus de la grille
             }}
           >
-            <Player direction={direction} isMoving={isMoving} />
+            <Player 
+              direction={direction} 
+              isMoving={isMoving} 
+              isHighGrass={BIG_MAP[pos.y][pos.x] === 1} // <-- L'OUBLI ÉTAIT ICI !
+            />
           </div>
         </div>
       </div>

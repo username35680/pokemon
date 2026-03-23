@@ -40,3 +40,13 @@
 .read-the-docs {
   color: #888;
 }
+@keyframes grass-shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-1px) rotate(-1deg); }
+  75% { transform: translateX(1px) rotate(1deg); }
+  100% { transform: translateX(0); }
+}
+
+.high-grass-anim {
+  animation: grass-shake 0.3s infinite;
+}

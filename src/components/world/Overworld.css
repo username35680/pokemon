@@ -1,0 +1,25 @@
+/* Animation de vibration pour les herbes */
+@keyframes grass-shake {
+  0% { transform: translateX(0) rotate(0deg); }
+  25% { transform: translateX(-1.5px) rotate(-2deg); }
+  50% { transform: translateX(0) rotate(0deg); }
+  75% { transform: translateX(1.5px) rotate(2deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+
+.high-grass-anim {
+  animation: grass-shake 0.3s ease-in-out infinite;
+  /* Optionnel : on peut ajouter un petit filtre pour assombrir 
+     légèrement l'herbe quand on est dessus */
+  filter: brightness(0.9);
+}
+
+/* Optionnel : Un effet de transition pour le combat */
+.battle-flash {
+  animation: flash 0.2s ease-in-out 3;
+}
+
+@keyframes flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
